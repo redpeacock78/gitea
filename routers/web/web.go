@@ -280,10 +280,8 @@ func Routes() *web.Router {
 		routes.Get("/api/swagger", append(mid, misc.Swagger)...) // Render V1 by default
 	}
 
-	// TODO: These really seem like things that could be folded into Contexter or as helper functions
-	mid = append(mid, user.GetNotificationCount)
-	mid = append(mid, repo.GetActiveStopwatch)
 	mid = append(mid, goGet)
+	mid = append(mid, common.PageTmplFunctions)
 
 	others := web.NewRouter()
 	others.Use(mid...)
@@ -1080,6 +1078,8 @@ func registerRoutes(m *web.Router) {
 		m.Post("/avatar", web.Bind(forms.AvatarForm{}), repo_setting.SettingsAvatar)
 		m.Post("/avatar/delete", repo_setting.SettingsDeleteAvatar)
 
+		m.Combo("/public_access").Get(repo_setting.PublicAccess).Post(repo_setting.PublicAccessPost)
+
 		m.Group("/collaboration", func() {
 			m.Combo("").Get(repo_setting.Collaboration).Post(repo_setting.CollaborationPost)
 			m.Post("/access_mode", repo_setting.ChangeCollaborationAccessMode)
@@ -1185,6 +1185,7 @@ func registerRoutes(m *web.Router) {
 		m.Combo("/compare/*", repo.MustBeNotEmpty, repo.SetEditorconfigIfExists).
 			Get(repo.SetDiffViewStyle, repo.SetWhitespaceBehavior, repo.CompareDiff).
 			Post(reqSignIn, context.RepoMustNotBeArchived(), reqUnitPullsReader, repo.MustAllowPulls, web.Bind(forms.CreateIssueForm{}), repo.SetWhitespaceBehavior, repo.CompareAndPullRequestPost)
+		m.Get("/pulls/new/*", repo.PullsNewRedirect)
 	}, optSignIn, context.RepoAssignment, reqUnitCodeReader)
 	// end "/{username}/{reponame}": repo code: find, compare, list
 
@@ -1489,7 +1490,7 @@ func registerRoutes(m *web.Router) {
 			})
 			m.Group("/recent-commits", func() {
 				m.Get("", repo.RecentCommits)
-				m.Get("/data", repo.RecentCommitsData)
+				m.Get("/data", repo.CodeFrequencyData) // "recent-commits" also uses the same data as "code-frequency"
 			})
 		}, reqUnitCodeReader)
 	},
@@ -1640,7 +1641,7 @@ func registerRoutes(m *web.Router) {
 		m.Group("/devtest", func() {
 			m.Any("", devtest.List)
 			m.Any("/fetch-action-test", devtest.FetchActionTest)
-			m.Any("/{sub}", devtest.Tmpl)
+			m.Any("/{sub}", devtest.TmplCommon)
 			m.Get("/repo-action-view/{run}/{job}", devtest.MockActionsView)
 			m.Post("/actions-mock/runs/{run}/jobs/{job}", web.Bind(actions.ViewRequest{}), devtest.MockActionsRunsJobs)
 		})
